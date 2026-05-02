@@ -54,6 +54,7 @@ const Admin = () => {
         <div className="flex items-center gap-2">
           <Shield className="h-5 w-5 text-accent" />
           <h1 className="text-xl font-bold text-foreground">Admin Dashboard</h1>
+          {isOwner && <span className="ml-2 text-[10px] uppercase font-bold tracking-wider bg-accent text-accent-foreground px-2 py-0.5 rounded">Owner</span>}
         </div>
 
         <Tabs defaultValue="api">
@@ -61,34 +62,16 @@ const Admin = () => {
             <TabsTrigger value="api"><Key className="h-4 w-4 mr-1.5" /> API Management</TabsTrigger>
             <TabsTrigger value="deposits"><DollarSign className="h-4 w-4 mr-1.5" /> Deposits</TabsTrigger>
             <TabsTrigger value="users"><Users className="h-4 w-4 mr-1.5" /> Users</TabsTrigger>
+            {isOwner && <TabsTrigger value="roles"><Shield className="h-4 w-4 mr-1.5" /> Roles</TabsTrigger>}
             <TabsTrigger value="settings"><SettingsIcon className="h-4 w-4 mr-1.5" /> Site Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="api"><ApiManagement /></TabsContent>
           <TabsContent value="deposits"><DepositsAdmin /></TabsContent>
           <TabsContent value="users"><UsersAdmin /></TabsContent>
+          {isOwner && <TabsContent value="roles"><RolesAdmin /></TabsContent>}
           <TabsContent value="settings"><SiteSettingsAdmin /></TabsContent>
         </Tabs>
-      </div>
-    </div>
-  );
-};
-
-const NotAdmin = () => {
-  const { user } = useAuth();
-  return (
-    <div className="min-h-screen bg-background">
-      <SiteHeader />
-      <div className="container max-w-md py-10 px-4 text-center space-y-4">
-        <Shield className="h-12 w-12 text-accent mx-auto" />
-        <h1 className="text-xl font-bold text-foreground">Admin Access Required</h1>
-        <p className="text-sm text-muted-foreground">
-          Your account ({user?.email}) does not have admin privileges. To grant yourself admin access, an existing admin must add you to the admin role, or you can do it via the database from the backend dashboard.
-        </p>
-        <div className="bg-surface border border-border rounded-lg p-3 text-xs text-left text-muted-foreground">
-          Run this SQL in the backend (replace with your user id):<br/>
-          <code className="text-accent">INSERT INTO user_roles (user_id, role) VALUES ('{user?.id}', 'admin');</code>
-        </div>
       </div>
     </div>
   );
