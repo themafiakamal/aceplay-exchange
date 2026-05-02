@@ -97,19 +97,12 @@ const Register = () => {
         },
       },
     });
+    setLoading(false);
     if (error) {
-      setLoading(false);
       toast.error(error.message);
       return;
     }
-    // With auto-confirm enabled, signUp returns a session — but ensure we're signed in
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) {
-      await supabase.auth.signInWithPassword({ email, password: form.password });
-    }
-    setLoading(false);
     setSuccess(true);
-    setTimeout(() => navigate("/dashboard"), 1500);
   }
 
   return (
@@ -225,7 +218,7 @@ const Register = () => {
             <p className="text-xs text-muted-foreground mb-4">
               Make your first deposit now and claim your 100% Welcome Bonus.
             </p>
-            <Button variant="navy" className="w-full" onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
+            <Button variant="navy" className="w-full" onClick={() => navigate("/deposit")}>Deposit Now</Button>
           </div>
         </DialogContent>
       </Dialog>
