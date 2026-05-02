@@ -33,6 +33,9 @@ export function useAuth() {
       } else {
         setProfile(null);
         setIsAdmin(false);
+        setIsOwner(false);
+        setIsModerator(false);
+        setRoles([]);
       }
     });
 
