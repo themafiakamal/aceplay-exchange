@@ -40,11 +40,12 @@ interface ProfileRow {
 }
 
 const Admin = () => {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, isOwner, loading } = useAuth();
 
   if (loading) return <div className="min-h-screen bg-background" />;
   if (!user) return <Navigate to="/login" replace />;
-  if (!isAdmin) return <NotAdmin />;
+  // Strict RBAC: non-admins are sent home immediately
+  if (!isAdmin) return <Navigate to="/" replace />;
 
   return (
     <div className="min-h-screen bg-background pb-10">
@@ -53,6 +54,7 @@ const Admin = () => {
         <div className="flex items-center gap-2">
           <Shield className="h-5 w-5 text-accent" />
           <h1 className="text-xl font-bold text-foreground">Admin Dashboard</h1>
+          {isOwner && <span className="ml-2 text-[10px] uppercase font-bold tracking-wider bg-accent text-accent-foreground px-2 py-0.5 rounded">Owner</span>}
         </div>
 
         <Tabs defaultValue="api">
@@ -60,34 +62,16 @@ const Admin = () => {
             <TabsTrigger value="api"><Key className="h-4 w-4 mr-1.5" /> API Management</TabsTrigger>
             <TabsTrigger value="deposits"><DollarSign className="h-4 w-4 mr-1.5" /> Deposits</TabsTrigger>
             <TabsTrigger value="users"><Users className="h-4 w-4 mr-1.5" /> Users</TabsTrigger>
+            {isOwner && <TabsTrigger value="roles"><Shield className="h-4 w-4 mr-1.5" /> Roles</TabsTrigger>}
             <TabsTrigger value="settings"><SettingsIcon className="h-4 w-4 mr-1.5" /> Site Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="api"><ApiManagement /></TabsContent>
           <TabsContent value="deposits"><DepositsAdmin /></TabsContent>
           <TabsContent value="users"><UsersAdmin /></TabsContent>
+          {isOwner && <TabsContent value="roles"><RolesAdmin /></TabsContent>}
           <TabsContent value="settings"><SiteSettingsAdmin /></TabsContent>
         </Tabs>
-      </div>
-    </div>
-  );
-};
-
-const NotAdmin = () => {
-  const { user } = useAuth();
-  return (
-    <div className="min-h-screen bg-background">
-      <SiteHeader />
-      <div className="container max-w-md py-10 px-4 text-center space-y-4">
-        <Shield className="h-12 w-12 text-accent mx-auto" />
-        <h1 className="text-xl font-bold text-foreground">Admin Access Required</h1>
-        <p className="text-sm text-muted-foreground">
-          Your account ({user?.email}) does not have admin privileges. To grant yourself admin access, an existing admin must add you to the admin role, or you can do it via the database from the backend dashboard.
-        </p>
-        <div className="bg-surface border border-border rounded-lg p-3 text-xs text-left text-muted-foreground">
-          Run this SQL in the backend (replace with your user id):<br/>
-          <code className="text-accent">INSERT INTO user_roles (user_id, role) VALUES ('{user?.id}', 'admin');</code>
-        </div>
       </div>
     </div>
   );
@@ -316,6 +300,102 @@ const SiteSettingsAdmin = () => {
           <Button variant="hero" size="sm" onClick={() => save(it.key, it.value)}>Save</Button>
         </div>
       ))}
+    </div>
+  );
+};
+
+type Role = "owner" | "admin" | "moderator" | "user";
+interface UserWithRoles { id: string; username: string; email: string | null; roles: Role[]; }
+
+const RolesAdmin = () => {
+  const { user: me } = useAuth();
+  const [rows, setRows] = useState<UserWithRoles[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    const [{ data: profiles }, { data: allRoles }] = await Promise.all([
+      supabase.from("profiles").select("id, username, email").order("username"),
+      supabase.from("user_roles").select("user_id, role"),
+    ]);
+    const map = new Map<string, Role[]>();
+    (allRoles ?? []).forEach((r: any) => {
+      const arr = map.get(r.user_id) ?? [];
+      arr.push(r.role);
+      map.set(r.user_id, arr);
+    });
+    setRows((profiles ?? []).map((p: any) => ({ ...p, roles: map.get(p.id) ?? [] })));
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+
+  async function grantRole(userId: string, role: Role) {
+    if (role === "owner") return toast.error("Owner role can only be assigned via the database");
+    const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
+    if (error) return toast.error(error.message);
+    toast.success(`Granted ${role}`);
+    load();
+  }
+
+  async function revokeRole(userId: string, role: Role) {
+    if (role === "owner") return toast.error("Owner role is permanent and cannot be revoked");
+    const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
+    if (error) return toast.error(error.message);
+    toast.success(`Revoked ${role}`);
+    load();
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-4 shadow-card mt-4 space-y-3">
+      <p className="text-xs text-muted-foreground">As Owner, you can promote any registered user to <b>Admin</b> or <b>Moderator</b>. Owner role is permanent and managed at the database level.</p>
+      {loading && <p className="text-sm text-muted-foreground">Loading users…</p>}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-muted-foreground text-xs uppercase">
+            <tr><th className="py-2 pr-3">User</th><th className="pr-3">Roles</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((u) => {
+              const isMe = u.id === me?.id;
+              const isOwnerRow = u.roles.includes("owner");
+              return (
+                <tr key={u.id} className="border-t border-border align-top">
+                  <td className="py-2 pr-3">
+                    <div className="font-semibold text-foreground">{u.username}{isMe && <span className="ml-1 text-[10px] text-accent">(you)</span>}</div>
+                    <div className="text-xs text-muted-foreground">{u.email}</div>
+                  </td>
+                  <td className="pr-3 py-2">
+                    <div className="flex flex-wrap gap-1">
+                      {u.roles.length === 0 && <span className="text-xs text-muted-foreground">user</span>}
+                      {u.roles.map((r) => (
+                        <span key={r} className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${r === "owner" ? "bg-accent text-accent-foreground" : r === "admin" ? "bg-primary text-primary-foreground" : "bg-surface-elevated text-foreground"}`}>{r}</span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-2">
+                    <div className="flex flex-wrap gap-1">
+                      {!u.roles.includes("admin") && !isOwnerRow && (
+                        <Button size="sm" variant="hero" onClick={() => grantRole(u.id, "admin")}>+ Admin</Button>
+                      )}
+                      {u.roles.includes("admin") && !isOwnerRow && (
+                        <Button size="sm" variant="destructive" onClick={() => revokeRole(u.id, "admin")}>− Admin</Button>
+                      )}
+                      {!u.roles.includes("moderator") && !isOwnerRow && (
+                        <Button size="sm" variant="secondary" onClick={() => grantRole(u.id, "moderator")}>+ Mod</Button>
+                      )}
+                      {u.roles.includes("moderator") && !isOwnerRow && (
+                        <Button size="sm" variant="destructive" onClick={() => revokeRole(u.id, "moderator")}>− Mod</Button>
+                      )}
+                      {isOwnerRow && <span className="text-xs text-muted-foreground italic">Owner — protected</span>}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {rows.length === 0 && !loading && <tr><td colSpan={3} className="text-center py-6 text-muted-foreground">No users.</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

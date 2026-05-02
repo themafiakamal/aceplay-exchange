@@ -17,6 +17,9 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
+  const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,6 +33,9 @@ export function useAuth() {
       } else {
         setProfile(null);
         setIsAdmin(false);
+        setIsOwner(false);
+        setIsModerator(false);
+        setRoles([]);
       }
     });
 
@@ -44,12 +50,18 @@ export function useAuth() {
   }, []);
 
   async function loadUserData(uid: string) {
-    const [{ data: p }, { data: roles }] = await Promise.all([
+    const [{ data: p }, { data: r }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", uid),
     ]);
     setProfile(p as Profile | null);
-    setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+    const list = (r ?? []).map((x: any) => x.role as string);
+    setRoles(list);
+    const owner = list.includes("owner");
+    setIsOwner(owner);
+    // Owner implicitly has admin/moderator
+    setIsAdmin(owner || list.includes("admin"));
+    setIsModerator(owner || list.includes("admin") || list.includes("moderator"));
   }
 
   async function signOut() {
@@ -57,5 +69,5 @@ export function useAuth() {
     window.location.href = "/";
   }
 
-  return { session, user, profile, isAdmin, loading, signOut, refresh: () => user && loadUserData(user.id) };
+  return { session, user, profile, isAdmin, isOwner, isModerator, roles, loading, signOut, refresh: () => user && loadUserData(user.id) };
 }
