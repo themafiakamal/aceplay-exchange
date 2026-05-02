@@ -40,11 +40,12 @@ interface ProfileRow {
 }
 
 const Admin = () => {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, isOwner, loading } = useAuth();
 
   if (loading) return <div className="min-h-screen bg-background" />;
   if (!user) return <Navigate to="/login" replace />;
-  if (!isAdmin) return <NotAdmin />;
+  // Strict RBAC: non-admins are sent home immediately
+  if (!isAdmin) return <Navigate to="/" replace />;
 
   return (
     <div className="min-h-screen bg-background pb-10">
