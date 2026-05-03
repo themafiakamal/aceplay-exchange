@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Navigate, Link } from "react-router-dom";
 import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
 import { SiteHeader } from "@/components/layout/SiteHeader";
@@ -9,40 +9,55 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Smartphone, CreditCard } from "lucide-react";
+import { CreditCard, Copy } from "lucide-react";
 
-const methods = [
-  { id: "Nagad", color: "from-orange-500 to-orange-700", bonus: "+3.0%", short: "N", icon: Smartphone },
-  { id: "Bkash", color: "from-pink-500 to-pink-700", bonus: "+3.0%", short: "b", icon: Smartphone },
-  { id: "Rocket", color: "from-purple-500 to-purple-700", bonus: "+3.0%", short: "R", icon: Smartphone },
-  { id: "Upay", color: "from-yellow-400 to-amber-600", bonus: "+3.0%", short: "U", icon: Smartphone },
-];
-
-const altMethods = [
-  { id: "PayBangla", color: "from-red-500 to-red-700" },
-  { id: "BajiPay", color: "from-fuchsia-500 to-fuchsia-700" },
-  { id: "SpeedPay", color: "from-emerald-500 to-emerald-700" },
-];
+interface PaymentMethod {
+  id: string;
+  code: string;
+  name: string;
+  account_number: string | null;
+  account_type: string | null;
+  logo_url: string | null;
+  enabled: boolean;
+}
 
 const presetAmounts = [200, 500, 1000, 2000, 10000, 20000];
+
+const colorMap: Record<string, string> = {
+  Nagad: "from-orange-500 to-orange-700",
+  Bkash: "from-pink-500 to-pink-700",
+  Rocket: "from-purple-500 to-purple-700",
+  Upay: "from-yellow-400 to-amber-600",
+};
 
 const schema = z.object({
   method: z.string().min(2),
   amount: z.number().min(100, "Minimum deposit is 100").max(500000),
-  reference: z.string().max(80).optional(),
+  reference: z.string().min(4, "Transaction ID is required").max(80),
   bonus: z.string().max(40).optional(),
 });
 
 const Deposit = () => {
   const { user, profile, loading } = useAuth();
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [method, setMethod] = useState("Nagad");
   const [amount, setAmount] = useState(500);
   const [reference, setReference] = useState("");
   const [bonus, setBonus] = useState("No Bonus");
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    supabase.from("payment_methods").select("*").eq("enabled", true).order("sort_order").then(({ data }) => {
+      const list = (data ?? []) as PaymentMethod[];
+      setMethods(list);
+      if (list.length && !list.find((m) => m.code === method)) setMethod(list[0].code);
+    });
+  }, []);
+
   if (loading) return <div className="min-h-screen bg-background" />;
   if (!user) return <Navigate to="/login" replace />;
+
+  const selected = methods.find((m) => m.code === method);
 
   async function submit() {
     const parsed = schema.safeParse({ method, amount, reference, bonus });
@@ -55,7 +70,7 @@ const Deposit = () => {
       user_id: user!.id,
       amount,
       payment_method: method,
-      reference: reference || null,
+      reference,
       bonus,
     });
     setSubmitting(false);
@@ -65,6 +80,11 @@ const Deposit = () => {
     }
     toast.success("Deposit request submitted! Pending admin approval.");
     setReference("");
+  }
+
+  function copy(text: string) {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied");
   }
 
   return (
@@ -82,29 +102,44 @@ const Deposit = () => {
         <div className="bg-surface rounded-xl border border-border p-4 shadow-card">
           <div className="grid grid-cols-2 gap-2 mb-4">
             <button className="gradient-accent text-accent-foreground font-bold py-2.5 rounded-md">Deposit</button>
-            <button className="bg-surface-elevated text-foreground font-semibold py-2.5 rounded-md">Withdraw</button>
+            <Link to="/withdraw" className="bg-surface-elevated text-foreground font-semibold py-2.5 rounded-md text-center">Withdraw</Link>
           </div>
 
           <Label className="mb-2 block">Payment Method</Label>
           <div className="grid grid-cols-4 gap-2 mb-4">
             {methods.map((m) => (
-              <button key={m.id} onClick={() => setMethod(m.id)} className={`relative rounded-lg p-2 border-2 transition-smooth ${method === m.id ? "border-accent shadow-glow-accent" : "border-border"}`}>
-                <span className="absolute -top-1.5 -right-1 text-[9px] bg-success text-success-foreground font-bold px-1 py-0.5 rounded">{m.bonus}</span>
-                <div className={`w-full aspect-square rounded bg-gradient-to-br ${m.color} flex items-center justify-center text-white font-bold text-2xl`}>{m.short}</div>
-                <p className="text-[11px] font-semibold text-center mt-1 text-foreground">{m.id}</p>
+              <button key={m.id} onClick={() => setMethod(m.code)} className={`relative rounded-lg p-2 border-2 transition-smooth ${method === m.code ? "border-accent shadow-glow-accent" : "border-border"}`}>
+                <span className="absolute -top-1.5 -right-1 text-[9px] bg-success text-success-foreground font-bold px-1 py-0.5 rounded">+3.0%</span>
+                {m.logo_url ? (
+                  <img src={m.logo_url} alt={m.name} className="w-full aspect-square rounded object-cover" />
+                ) : (
+                  <div className={`w-full aspect-square rounded bg-gradient-to-br ${colorMap[m.code] ?? "from-slate-500 to-slate-700"} flex items-center justify-center text-white font-bold text-2xl`}>
+                    {m.name.charAt(0)}
+                  </div>
+                )}
+                <p className="text-[11px] font-semibold text-center mt-1 text-foreground">{m.name}</p>
               </button>
             ))}
           </div>
 
-          <Label className="mb-2 block">Alternative Channels</Label>
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {altMethods.map((m) => (
-              <button key={m.id} onClick={() => setMethod(m.id)} className={`rounded-lg p-2 border-2 ${method === m.id ? "border-accent" : "border-border"}`}>
-                <div className={`w-full h-7 rounded bg-gradient-to-br ${m.color}`} />
-                <p className="text-[11px] font-semibold text-center mt-1 text-foreground">{m.id}</p>
-              </button>
-            ))}
-          </div>
+          {selected && (
+            <div className="bg-surface-elevated border border-accent/40 rounded-lg p-3 mb-4">
+              <p className="text-xs text-muted-foreground uppercase">Send money to this {selected.name} number</p>
+              {selected.account_number ? (
+                <div className="flex items-center justify-between mt-1">
+                  <div>
+                    <p className="text-lg font-bold text-foreground tracking-wide">{selected.account_number}</p>
+                    <p className="text-xs text-muted-foreground">Account type: {selected.account_type ?? "Personal"}</p>
+                  </div>
+                  <Button size="sm" variant="secondary" onClick={() => copy(selected.account_number!)}>
+                    <Copy className="h-3.5 w-3.5" /> Copy
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-destructive mt-1">Number not configured yet. Please contact support.</p>
+              )}
+            </div>
+          )}
 
           <Label className="mb-2 block">Amount</Label>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2">
@@ -126,8 +161,8 @@ const Deposit = () => {
             </SelectContent>
           </Select>
 
-          <Label htmlFor="ref" className="mb-2 block">Transaction Reference (optional)</Label>
-          <Input id="ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="TrxID from app" className="bg-input mb-4" />
+          <Label htmlFor="ref" className="mb-2 block">Transaction ID (TrxID) *</Label>
+          <Input id="ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Enter the TrxID from your payment app" className="bg-input mb-4" />
 
           <Button variant="navy" className="w-full" onClick={submit} disabled={submitting}>
             {submitting ? "Submitting..." : "Submit Deposit Request"}
