@@ -83,6 +83,42 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_methods: {
+        Row: {
+          account_number: string | null
+          account_type: string | null
+          code: string
+          enabled: boolean
+          id: string
+          logo_url: string | null
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          account_number?: string | null
+          account_type?: string | null
+          code: string
+          enabled?: boolean
+          id?: string
+          logo_url?: string | null
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          account_number?: string | null
+          account_type?: string | null
+          code?: string
+          enabled?: boolean
+          id?: string
+          logo_url?: string | null
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           balance: number
@@ -154,6 +190,42 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      withdrawals: {
+        Row: {
+          account_name: string | null
+          account_number: string
+          amount: number
+          created_at: string
+          id: string
+          notes: string | null
+          payment_method: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          account_name?: string | null
+          account_number: string
+          amount: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_method: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string
+          amount?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_method?: string
+          status?: string
           user_id?: string
         }
         Relationships: []
