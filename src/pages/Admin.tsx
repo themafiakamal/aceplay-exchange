@@ -257,6 +257,8 @@ const DepositsAdmin = () => {
 const UsersAdmin = () => {
   const [users, setUsers] = useState<ProfileRow[]>([]);
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [pendingDelete, setPendingDelete] = useState<ProfileRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     const { data } = await supabase.from("profiles").select("id, username, balance, currency").order("username");
@@ -273,15 +275,32 @@ const UsersAdmin = () => {
     load();
   }
 
-  async function deleteUser(u: ProfileRow) {
-    if (!confirm(`Delete user "${u.username}"? This removes their profile, role, deposits and withdrawals.`)) return;
-    await supabase.from("withdrawals").delete().eq("user_id", u.id);
-    await supabase.from("deposits").delete().eq("user_id", u.id);
-    await supabase.from("user_roles").delete().eq("user_id", u.id);
-    const { error } = await supabase.from("profiles").delete().eq("id", u.id);
-    if (error) return toast.error(error.message);
-    toast.success("User deleted");
-    load();
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const targetId = pendingDelete.id;
+    const targetName = pendingDelete.username;
+    if (!targetId) {
+      toast.error("Missing user id");
+      return;
+    }
+    setDeleting(true);
+    try {
+      await supabase.from("withdrawals").delete().eq("user_id", targetId);
+      await supabase.from("deposits").delete().eq("user_id", targetId);
+      await supabase.from("user_roles").delete().eq("user_id", targetId);
+      const { error } = await supabase.from("profiles").delete().eq("id", targetId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      // Optimistically remove just this row, then refresh from server
+      setUsers((prev) => prev.filter((p) => p.id !== targetId));
+      toast.success(`Deleted ${targetName}`);
+      setPendingDelete(null);
+      await load();
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -308,7 +327,7 @@ const UsersAdmin = () => {
                 </div>
               </td>
               <td>
-                <Button size="sm" variant="destructive" onClick={() => deleteUser(u)}>
+                <Button size="sm" variant="destructive" onClick={() => setPendingDelete(u)}>
                   <Trash2 className="h-3.5 w-3.5" /> Delete
                 </Button>
               </td>
@@ -317,6 +336,27 @@ const UsersAdmin = () => {
           {users.length === 0 && <tr><td colSpan={5} className="text-center py-6 text-muted-foreground">No users yet.</td></tr>}
         </tbody>
       </table>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this user?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <span className="font-semibold text-foreground">{pendingDelete?.username}</span> and remove their profile, role, deposits and withdrawals. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting…" : "Delete user"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
