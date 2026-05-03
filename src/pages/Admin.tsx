@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Shield, Key, Users, DollarSign, Settings as SettingsIcon, Save, Eye, EyeOff } from "lucide-react";
+import { Shield, Key, Users, DollarSign, Settings as SettingsIcon, Save, Eye, EyeOff, Trash2, ArrowUpFromLine } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { Button } from "@/components/ui/button";
@@ -59,12 +59,14 @@ const Admin = () => {
           <TabsList className="bg-surface w-full justify-start overflow-x-auto">
             <TabsTrigger value="api"><Key className="h-4 w-4 mr-1.5" /> API Management</TabsTrigger>
             <TabsTrigger value="deposits"><DollarSign className="h-4 w-4 mr-1.5" /> Deposits</TabsTrigger>
+            <TabsTrigger value="withdrawals"><ArrowUpFromLine className="h-4 w-4 mr-1.5" /> Withdraw Requests</TabsTrigger>
             <TabsTrigger value="users"><Users className="h-4 w-4 mr-1.5" /> Users</TabsTrigger>
             <TabsTrigger value="settings"><SettingsIcon className="h-4 w-4 mr-1.5" /> Site Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="api"><ApiManagement /></TabsContent>
           <TabsContent value="deposits"><DepositsAdmin /></TabsContent>
+          <TabsContent value="withdrawals"><WithdrawalsAdmin /></TabsContent>
           <TabsContent value="users"><UsersAdmin /></TabsContent>
           <TabsContent value="settings"><SiteSettingsAdmin /></TabsContent>
         </Tabs>
