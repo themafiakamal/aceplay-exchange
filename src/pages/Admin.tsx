@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Shield, Key, Users, DollarSign, Settings as SettingsIcon, Save, Eye, EyeOff } from "lucide-react";
+import { Shield, Key, Users, DollarSign, Settings as SettingsIcon, Save, Eye, EyeOff, Trash2, ArrowUpFromLine } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { Button } from "@/components/ui/button";
@@ -59,12 +59,14 @@ const Admin = () => {
           <TabsList className="bg-surface w-full justify-start overflow-x-auto">
             <TabsTrigger value="api"><Key className="h-4 w-4 mr-1.5" /> API Management</TabsTrigger>
             <TabsTrigger value="deposits"><DollarSign className="h-4 w-4 mr-1.5" /> Deposits</TabsTrigger>
+            <TabsTrigger value="withdrawals"><ArrowUpFromLine className="h-4 w-4 mr-1.5" /> Withdraw Requests</TabsTrigger>
             <TabsTrigger value="users"><Users className="h-4 w-4 mr-1.5" /> Users</TabsTrigger>
             <TabsTrigger value="settings"><SettingsIcon className="h-4 w-4 mr-1.5" /> Site Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="api"><ApiManagement /></TabsContent>
           <TabsContent value="deposits"><DepositsAdmin /></TabsContent>
+          <TabsContent value="withdrawals"><WithdrawalsAdmin /></TabsContent>
           <TabsContent value="users"><UsersAdmin /></TabsContent>
           <TabsContent value="settings"><SiteSettingsAdmin /></TabsContent>
         </Tabs>
@@ -261,11 +263,22 @@ const UsersAdmin = () => {
     load();
   }
 
+  async function deleteUser(u: ProfileRow) {
+    if (!confirm(`Delete user "${u.username}"? This removes their profile, role, deposits and withdrawals.`)) return;
+    await supabase.from("withdrawals").delete().eq("user_id", u.id);
+    await supabase.from("deposits").delete().eq("user_id", u.id);
+    await supabase.from("user_roles").delete().eq("user_id", u.id);
+    const { error } = await supabase.from("profiles").delete().eq("id", u.id);
+    if (error) return toast.error(error.message);
+    toast.success("User deleted");
+    load();
+  }
+
   return (
     <div className="bg-surface border border-border rounded-xl p-4 shadow-card mt-4 overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="text-left text-muted-foreground text-xs uppercase">
-          <tr><th className="py-2 pr-3">Username</th><th className="pr-3">Currency</th><th className="pr-3">Balance</th><th>Set Balance</th></tr>
+          <tr><th className="py-2 pr-3">Username</th><th className="pr-3">Currency</th><th className="pr-3">Balance</th><th className="pr-3">Set Balance</th><th>Actions</th></tr>
         </thead>
         <tbody>
           {users.map((u) => (
@@ -273,18 +286,25 @@ const UsersAdmin = () => {
               <td className="py-2 pr-3 font-semibold">{u.username}</td>
               <td className="pr-3">{u.currency}</td>
               <td className="pr-3 font-bold">৳ {Number(u.balance).toFixed(2)}</td>
-              <td className="flex gap-1 py-2">
-                <Input
-                  value={edits[u.id] ?? ""}
-                  onChange={(e) => setEdits((s) => ({ ...s, [u.id]: e.target.value }))}
-                  className="bg-input h-8 w-28"
-                  placeholder="amount"
-                />
-                <Button size="sm" variant="hero" onClick={() => saveBalance(u.id)}>Set</Button>
+              <td className="py-2 pr-3">
+                <div className="flex gap-1">
+                  <Input
+                    value={edits[u.id] ?? ""}
+                    onChange={(e) => setEdits((s) => ({ ...s, [u.id]: e.target.value }))}
+                    className="bg-input h-8 w-24"
+                    placeholder="amount"
+                  />
+                  <Button size="sm" variant="hero" onClick={() => saveBalance(u.id)}>Set</Button>
+                </div>
+              </td>
+              <td>
+                <Button size="sm" variant="destructive" onClick={() => deleteUser(u)}>
+                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                </Button>
               </td>
             </tr>
           ))}
-          {users.length === 0 && <tr><td colSpan={4} className="text-center py-6 text-muted-foreground">No users yet.</td></tr>}
+          {users.length === 0 && <tr><td colSpan={5} className="text-center py-6 text-muted-foreground">No users yet.</td></tr>}
         </tbody>
       </table>
     </div>
@@ -308,14 +328,171 @@ const SiteSettingsAdmin = () => {
   }
 
   return (
-    <div className="bg-surface border border-border rounded-xl p-4 shadow-card mt-4 space-y-3">
-      {items.map((it) => (
-        <div key={it.key} className="grid sm:grid-cols-[200px_1fr_auto] gap-2 items-center">
-          <Label className="text-foreground">{it.key}</Label>
-          <Input value={it.value} onChange={(e) => setItems((s) => s.map((x) => x.key === it.key ? { ...x, value: e.target.value } : x))} className="bg-input" />
-          <Button variant="hero" size="sm" onClick={() => save(it.key, it.value)}>Save</Button>
-        </div>
-      ))}
+    <div className="space-y-4 mt-4">
+      <div className="bg-surface border border-border rounded-xl p-4 shadow-card space-y-3">
+        <h3 className="font-bold text-foreground flex items-center gap-2"><SettingsIcon className="h-4 w-4 text-accent" /> General</h3>
+        {items.map((it) => (
+          <div key={it.key} className="grid sm:grid-cols-[200px_1fr_auto] gap-2 items-center">
+            <Label className="text-foreground">{it.key}</Label>
+            <Input value={it.value} onChange={(e) => setItems((s) => s.map((x) => x.key === it.key ? { ...x, value: e.target.value } : x))} className="bg-input" />
+            <Button variant="hero" size="sm" onClick={() => save(it.key, it.value)}>Save</Button>
+          </div>
+        ))}
+      </div>
+      <PaymentMethodsAdmin />
+    </div>
+  );
+};
+
+interface PaymentMethodRow {
+  id: string;
+  code: string;
+  name: string;
+  account_number: string | null;
+  account_type: string | null;
+  logo_url: string | null;
+  enabled: boolean;
+}
+
+const PaymentMethodsAdmin = () => {
+  const [rows, setRows] = useState<PaymentMethodRow[]>([]);
+
+  async function load() {
+    const { data } = await supabase.from("payment_methods").select("*").order("sort_order");
+    setRows((data ?? []) as PaymentMethodRow[]);
+  }
+  useEffect(() => { load(); }, []);
+
+  function update(id: string, patch: Partial<PaymentMethodRow>) {
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+
+  async function save(r: PaymentMethodRow) {
+    const { error } = await supabase.from("payment_methods").update({
+      name: r.name,
+      account_number: r.account_number,
+      account_type: r.account_type,
+      logo_url: r.logo_url,
+      enabled: r.enabled,
+      updated_at: new Date().toISOString(),
+    }).eq("id", r.id);
+    if (error) return toast.error(error.message);
+    toast.success(`${r.name} updated`);
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-4 shadow-card space-y-4">
+      <h3 className="font-bold text-foreground flex items-center gap-2"><DollarSign className="h-4 w-4 text-accent" /> Payment Methods (Mobile Numbers & Logos)</h3>
+      <div className="grid gap-3 md:grid-cols-2">
+        {rows.map((r) => (
+          <div key={r.id} className="border border-border rounded-lg p-3 bg-surface-elevated space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {r.logo_url ? (
+                  <img src={r.logo_url} alt={r.name} className="w-10 h-10 rounded object-cover border border-border" />
+                ) : (
+                  <div className="w-10 h-10 rounded bg-primary/30 flex items-center justify-center text-foreground font-bold">{r.name.charAt(0)}</div>
+                )}
+                <Input value={r.name} onChange={(e) => update(r.id, { name: e.target.value })} className="bg-input h-8" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{r.enabled ? "On" : "Off"}</span>
+                <Switch checked={r.enabled} onCheckedChange={(v) => update(r.id, { enabled: v })} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Mobile Number</Label>
+              <Input value={r.account_number ?? ""} onChange={(e) => update(r.id, { account_number: e.target.value })} placeholder="01XXXXXXXXX" className="bg-input h-9" />
+            </div>
+            <div>
+              <Label className="text-xs">Account Type</Label>
+              <Input value={r.account_type ?? ""} onChange={(e) => update(r.id, { account_type: e.target.value })} placeholder="Personal / Agent / Merchant" className="bg-input h-9" />
+            </div>
+            <div>
+              <Label className="text-xs">Logo URL</Label>
+              <Input value={r.logo_url ?? ""} onChange={(e) => update(r.id, { logo_url: e.target.value })} placeholder="https://.../logo.png" className="bg-input h-9" />
+            </div>
+            <Button variant="hero" size="sm" className="w-full" onClick={() => save(r)}><Save className="h-3.5 w-3.5" /> Save {r.name}</Button>
+          </div>
+        ))}
+        {rows.length === 0 && <p className="text-sm text-muted-foreground">Loading payment methods…</p>}
+      </div>
+    </div>
+  );
+};
+
+interface WithdrawalRow {
+  id: string;
+  user_id: string;
+  amount: number;
+  payment_method: string;
+  account_number: string;
+  account_name: string | null;
+  status: string;
+  created_at: string;
+}
+
+const WithdrawalsAdmin = () => {
+  const [rows, setRows] = useState<WithdrawalRow[]>([]);
+
+  async function load() {
+    const { data } = await supabase.from("withdrawals").select("*").order("created_at", { ascending: false }).limit(200);
+    setRows((data ?? []) as WithdrawalRow[]);
+  }
+  useEffect(() => { load(); }, []);
+
+  async function setStatus(w: WithdrawalRow, status: "approved" | "rejected") {
+    if (status === "approved") {
+      const { data: prof } = await supabase.from("profiles").select("balance").eq("id", w.user_id).maybeSingle();
+      const current = Number(prof?.balance ?? 0);
+      if (current < Number(w.amount)) return toast.error("User balance insufficient");
+      await supabase.from("profiles").update({ balance: current - Number(w.amount) }).eq("id", w.user_id);
+    }
+    const { error } = await supabase.from("withdrawals").update({ status }).eq("id", w.id);
+    if (error) return toast.error(error.message);
+    toast.success(`Withdrawal ${status}`);
+    load();
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-4 shadow-card mt-4 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="text-left text-muted-foreground text-xs uppercase">
+          <tr>
+            <th className="py-2 pr-3">Date</th>
+            <th className="pr-3">Method</th>
+            <th className="pr-3">Account</th>
+            <th className="pr-3">Amount</th>
+            <th className="pr-3">Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className="border-t border-border">
+              <td className="py-2 pr-3 text-xs">{new Date(r.created_at).toLocaleString()}</td>
+              <td className="pr-3">{r.payment_method}</td>
+              <td className="pr-3 text-xs">
+                <div className="font-semibold text-foreground">{r.account_number}</div>
+                {r.account_name && <div className="text-muted-foreground">{r.account_name}</div>}
+              </td>
+              <td className="pr-3 font-bold">৳ {Number(r.amount).toFixed(2)}</td>
+              <td className="pr-3">
+                <span className={`text-xs font-bold ${r.status === "approved" ? "text-success" : r.status === "rejected" ? "text-destructive" : "text-accent"}`}>{r.status}</span>
+              </td>
+              <td className="space-x-1">
+                {r.status === "pending" && (
+                  <>
+                    <Button size="sm" variant="hero" onClick={() => setStatus(r, "approved")}>Approve</Button>
+                    <Button size="sm" variant="destructive" onClick={() => setStatus(r, "rejected")}>Reject</Button>
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+          {rows.length === 0 && <tr><td colSpan={6} className="text-center py-6 text-muted-foreground">No withdrawal requests yet.</td></tr>}
+        </tbody>
+      </table>
     </div>
   );
 };

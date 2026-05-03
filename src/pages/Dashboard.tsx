@@ -44,7 +44,7 @@ const Dashboard = () => {
           <p className="text-xs text-white/70 mt-1">{profile?.currency ?? "BDT"} • {profile?.username}</p>
           <div className="grid grid-cols-2 gap-2 mt-4 relative">
             <Button variant="hero" asChild><Link to="/deposit"><ArrowDownToLine className="h-4 w-4" /> Deposit</Link></Button>
-            <Button variant="outlineLight" disabled><ArrowUpFromLine className="h-4 w-4" /> Withdraw</Button>
+            <Button variant="outlineLight" asChild><Link to="/withdraw"><ArrowUpFromLine className="h-4 w-4" /> Withdraw</Link></Button>
           </div>
         </div>
 
