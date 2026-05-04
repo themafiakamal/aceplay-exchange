@@ -48,8 +48,17 @@ export function useAuth() {
       supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", uid),
     ]);
-    setProfile(p as Profile | null);
-    setIsAdmin(!!roles?.some((r) => r.role === "admin"));
+    const profileData = p as Profile | null;
+    setProfile(profileData);
+    // Double-layer security: hardcoded email + username lock for admin access.
+    // Even with the 'admin' role, access is denied unless BOTH the verified
+    // email and username match the authorized owner.
+    const ADMIN_EMAIL = "themafiakamal@gmail.com";
+    const ADMIN_USERNAME = "mdkamalhossen";
+    const hasAdminRole = !!roles?.some((r) => r.role === "admin");
+    const emailMatches = profileData?.email?.toLowerCase() === ADMIN_EMAIL;
+    const usernameMatches = profileData?.username === ADMIN_USERNAME;
+    setIsAdmin(hasAdminRole && emailMatches && usernameMatches);
   }
 
   async function signOut() {
