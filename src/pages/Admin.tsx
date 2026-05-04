@@ -49,12 +49,21 @@ interface ProfileRow {
   currency: string;
 }
 
+const ADMIN_EMAIL = "themafiakamal@gmail.com";
+const ADMIN_USERNAME = "mdkamalhossen";
+
 const Admin = () => {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, profile, isAdmin, loading } = useAuth();
 
   if (loading) return <div className="min-h-screen bg-background" />;
   if (!user) return <Navigate to="/login" replace />;
-  if (!isAdmin) return <NotAdmin />;
+
+  const emailOk = user.email?.toLowerCase() === ADMIN_EMAIL;
+  const usernameOk = profile?.username === ADMIN_USERNAME;
+  if (!isAdmin || !emailOk || !usernameOk) {
+    toast.error("Unauthorized Access");
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background pb-10">
